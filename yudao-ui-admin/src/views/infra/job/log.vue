@@ -1,25 +1,28 @@
 <template>
   <div class="app-container">
-    <!-- 搜索工作栏 -->
-    <el-form :model="queryParams" ref="queryForm" :inline="true" v-show="showSearch" label-width="120px">
+    <doc-alert title="定时任务" url="https://doc.iocoder.cn/job/" />
+    <doc-alert title="异步任务" url="https://doc.iocoder.cn/async-task/" />
+    <doc-alert title="消息队列" url="https://doc.iocoder.cn/message-queue/" />
+    <!-- 搜索栏 -->
+    <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="120px">
       <el-form-item label="处理器的名字" prop="handlerName">
-        <el-input v-model="queryParams.handlerName" placeholder="请输入处理器的名字" clearable size="small" @keyup.enter.native="handleQuery"/>
+        <el-input v-model="queryParams.handlerName" placeholder="请输入处理器的名字" clearable @keyup.enter.native="handleQuery"/>
       </el-form-item>
       <el-form-item label="开始执行时间" prop="beginTime">
-        <el-date-picker clearable size="small" v-model="queryParams.beginTime" type="date" value-format="yyyy-MM-dd" placeholder="选择开始执行时间" />
+        <el-date-picker clearable v-model="queryParams.beginTime" type="date" value-format="yyyy-MM-dd" placeholder="选择开始执行时间" />
       </el-form-item>
       <el-form-item label="结束执行时间" prop="endTime">
-        <el-date-picker clearable size="small" v-model="queryParams.endTime" type="date" value-format="yyyy-MM-dd" placeholder="选择结束执行时间" />
+        <el-date-picker clearable v-model="queryParams.endTime" type="date" value-format="yyyy-MM-dd" placeholder="选择结束执行时间" />
       </el-form-item>
       <el-form-item label="任务状态" prop="status">
-        <el-select v-model="queryParams.status" placeholder="请选择任务状态" clearable size="small">
+        <el-select v-model="queryParams.status" placeholder="请选择任务状态" clearable>
           <el-option v-for="dict in this.getDictDatas(DICT_TYPE.INFRA_JOB_LOG_STATUS)"
                      :key="dict.value" :label="dict.label" :value="dict.value"/>
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
-        <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
+        <el-button type="primary" icon="el-icon-search" @click="handleQuery">搜索</el-button>
+        <el-button icon="el-icon-refresh" @click="resetQuery">重置</el-button>
       </el-form-item>
     </el-form>
 
@@ -38,22 +41,22 @@
       <el-table-column label="处理器的参数" align="center" prop="handlerParam" />
       <el-table-column label="第几次执行" align="center" prop="executeIndex" />
       <el-table-column label="执行时间" align="center" width="180">
-        <template slot-scope="scope">
+        <template v-slot="scope">
           <span>{{ parseTime(scope.row.beginTime) + ' ~ ' + parseTime(scope.row.endTime) }}</span>
         </template>
       </el-table-column>
       <el-table-column label="执行时长" align="center" prop="duration">
-        <template slot-scope="scope">
+        <template v-slot="scope">
           <span>{{ scope.row.duration + ' 毫秒' }}</span>
         </template>
       </el-table-column>
       <el-table-column label="任务状态" align="center" prop="status">
-        <template slot-scope="scope">
+        <template v-slot="scope">
           <dict-tag :type="DICT_TYPE.INFRA_JOB_LOG_STATUS" :value="scope.row.status" />
         </template>
       </el-table-column>
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
-        <template slot-scope="scope">
+        <template v-slot="scope">
           <el-button size="mini" type="text" icon="el-icon-view" @click="handleView(scope.row)" :loading="exportLoading"
                      v-hasPermi="['infra:job:query']">详细</el-button>
         </template>
@@ -74,7 +77,7 @@
             <el-form-item label="处理器的参数：">{{ form.handlerParam }}</el-form-item>
             <el-form-item label="第几次执行：">{{ form.executeIndex }}</el-form-item>
             <el-form-item label="执行时间：">{{ parseTime(form.beginTime) + ' ~ ' + parseTime(form.endTime) }}</el-form-item>
-            <el-form-item label="执行时长：">{{ parseTime(form.duration) + ' 毫秒' }}</el-form-item>
+            <el-form-item label="执行时长：">{{ form.duration + ' 毫秒' }}</el-form-item>
             <el-form-item label="任务状态：">
               <dict-tag :type="DICT_TYPE.INFRA_JOB_LOG_STATUS" :value="form.status" />
             </el-form-item>
@@ -93,7 +96,7 @@
 import { getJobLogPage, exportJobLogExcel } from "@/api/infra/jobLog";
 
 export default {
-  name: "JobLog",
+  name: "InfraJobLog",
   data() {
     return {
       // 遮罩层

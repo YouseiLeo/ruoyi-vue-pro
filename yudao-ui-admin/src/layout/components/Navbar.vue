@@ -9,6 +9,9 @@
       <template v-if="device!=='mobile'">
         <search id="header-search" class="right-menu-item" />
 
+        <!-- 站内信 -->
+        <notify-message class="right-menu-item hover-effect" />
+
         <el-tooltip content="源码地址" effect="dark" placement="bottom">
           <ruo-yi-git id="ruoyi-git" class="right-menu-item hover-effect" />
         </el-tooltip>
@@ -28,6 +31,7 @@
       <el-dropdown class="avatar-container right-menu-item hover-effect" trigger="click">
         <div class="avatar-wrapper">
           <img :src="avatar" class="user-avatar">
+          <span v-if="nickname" class="user-nickname">{{ nickname }}</span>
           <i class="el-icon-caret-bottom" />
         </div>
         <el-dropdown-menu slot="dropdown">
@@ -56,6 +60,8 @@ import SizeSelect from '@/components/SizeSelect'
 import Search from '@/components/HeaderSearch'
 import RuoYiGit from '@/components/RuoYi/Git'
 import RuoYiDoc from '@/components/RuoYi/Doc'
+import NotifyMessage from '@/layout/components/Message'
+import {getPath} from "@/utils/ruoyi";
 
 export default {
   components: {
@@ -66,12 +72,14 @@ export default {
     SizeSelect,
     Search,
     RuoYiGit,
-    RuoYiDoc
+    RuoYiDoc,
+    NotifyMessage
   },
   computed: {
     ...mapGetters([
       'sidebar',
       'avatar',
+      'nickname',
       'device'
     ]),
     setting: {
@@ -98,7 +106,7 @@ export default {
     async logout() {
       this.$modal.confirm('确定注销并退出系统吗？', '提示').then(() => {
         this.$store.dispatch('LogOut').then(() => {
-          location.href = '/index';
+          location.href = getPath('/index');
         })
       }).catch(() => {});
     }
@@ -172,14 +180,20 @@ export default {
       margin-right: 30px;
 
       .avatar-wrapper {
-        margin-top: 5px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
         position: relative;
 
         .user-avatar {
           cursor: pointer;
-          width: 40px;
-          height: 40px;
-          border-radius: 10px;
+          width: 35px;
+          height: 35px;
+          border-radius: 50%;
+        }
+        .user-nickname{
+          margin-left: 5px;
+          font-size: 14px;
         }
 
         .el-icon-caret-bottom {

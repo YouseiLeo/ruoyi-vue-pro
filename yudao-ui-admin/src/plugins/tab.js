@@ -36,6 +36,9 @@ export default {
         return router.push(lastPath || '/');
       });
     }
+    if (typeof obj === "function") {
+      return store.dispatch('tagsView/delView', router.currentRoute).then(obj);
+    }
     return store.dispatch('tagsView/delView', obj);
   },
   // 关闭所有tab页签
@@ -55,10 +58,10 @@ export default {
     return store.dispatch('tagsView/delOthersViews', obj || router.currentRoute);
   },
   // 添加tab页签
-  openPage(title, url) {
-    var obj = { path: url, meta: { title: title } }
+  openPage(title, url, params) {
+    const obj = { path: url, meta: { title: title } }
     store.dispatch('tagsView/addView', obj);
-    return router.push(url);
+    return router.push({ path: url, query: params });
   },
   // 修改tab页签
   updatePage(obj) {

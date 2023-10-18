@@ -1,5 +1,7 @@
 <template>
   <div class="app-container">
+    <doc-alert title="功能权限" url="https://doc.iocoder.cn/resource-permission" />
+    <doc-alert title="数据权限" url="https://doc.iocoder.cn/data-permission" />
     <el-form :model="queryParams" ref="queryForm" v-show="showSearch" :inline="true">
       <el-form-item label="角色名称" prop="name">
         <el-input v-model="queryParams.name" placeholder="请输入角色名称" clearable size="small" style="width: 240px"
@@ -14,9 +16,9 @@
           <el-option v-for="dict in statusDictDatas" :key="parseInt(dict.value)" :label="dict.label" :value="parseInt(dict.value)"/>
         </el-select>
       </el-form-item>
-      <el-form-item label="创建时间">
-        <el-date-picker v-model="dateRange" size="small" style="width: 240px" value-format="yyyy-MM-dd" type="daterange"
-          range-separator="-" start-placeholder="开始日期" end-placeholder="结束日期"></el-date-picker>
+      <el-form-item label="创建时间" prop="createTime">
+        <el-date-picker v-model="queryParams.createTime" style="width: 240px" value-format="yyyy-MM-dd HH:mm:ss" type="daterange"
+                        range-separator="-" start-placeholder="开始日期" end-placeholder="结束日期" :default-time="['00:00:00', '23:59:59']" />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
@@ -41,23 +43,23 @@
       <el-table-column label="角色名称" prop="name" :show-overflow-tooltip="true" width="150" />
       <el-table-column label="角色标识" prop="code" :show-overflow-tooltip="true" width="150" />
       <el-table-column label="角色类型" prop="type" width="80">
-        <template slot-scope="scope">
+        <template v-slot="scope">
           <dict-tag :type="DICT_TYPE.SYSTEM_ROLE_TYPE" :value="scope.row.type"/>
         </template>
       </el-table-column>
       <el-table-column label="显示顺序" prop="sort" width="100" />
       <el-table-column label="状态" align="center" width="100">
-        <template slot-scope="scope">
-          <el-switch v-model="scope.row.status" :active-value="0" :inactive-value="1" @change="handleStatusChange(scope.row)"></el-switch>
+        <template v-slot="scope">
+          <el-switch v-model="scope.row.status" :active-value="0" :inactive-value="1" @change="handleStatusChange(scope.row)"/>
         </template>
       </el-table-column>
       <el-table-column label="创建时间" align="center" prop="createTime" width="180">
-        <template slot-scope="scope">
+        <template v-slot="scope">
           <span>{{ parseTime(scope.row.createTime) }}</span>
         </template>
       </el-table-column>
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
-        <template slot-scope="scope">
+        <template v-slot="scope">
           <el-button size="mini" type="text" icon="el-icon-edit" @click="handleUpdate(scope.row)"
                      v-hasPermi="['system:role:update']">修改</el-button>
           <el-button size="mini" type="text" icon="el-icon-circle-check" @click="handleMenu(scope.row)"
@@ -149,16 +151,8 @@
         <el-form-item label="菜单权限">
           <el-checkbox v-model="menuExpand" @change="handleCheckedTreeExpand($event, 'menu')">展开/折叠</el-checkbox>
           <el-checkbox v-model="menuNodeAll" @change="handleCheckedTreeNodeAll($event, 'menu')">全选/全不选</el-checkbox>
-          <el-tree
-              class="tree-border"
-              :data="menuOptions"
-              show-checkbox
-              ref="menu"
-              node-key="id"
-              :check-strictly="form.menuCheckStrictly"
-              empty-text="加载中，请稍后"
-              :props="defaultProps"
-          ></el-tree>
+          <el-tree class="tree-border" :data="menuOptions" show-checkbox ref="menu" node-key="id"
+              :check-strictly="form.menuCheckStrictly" empty-text="加载中，请稍后" :props="defaultProps"></el-tree>
         </el-form-item>
       </el-form>
       <div slot="footer" class="dialog-footer">
@@ -173,7 +167,6 @@
 import {
   addRole,
   changeRoleStatus,
-  dataScope,
   delRole,
   exportRole,
   getRole,
@@ -187,7 +180,7 @@ import {CommonStatusEnum, SystemDataScopeEnum} from "@/utils/constants";
 import {DICT_TYPE, getDictDatas} from "@/utils/dict";
 
 export default {
-  name: "Role",
+  name: "SystemRole",
   data() {
     return {
       // 遮罩层
@@ -212,8 +205,6 @@ export default {
       menuNodeAll: false,
       deptExpand: true,
       deptNodeAll: false,
-      // 日期范围
-      dateRange: [],
       // 菜单列表
       menuOptions: [],
       // 部门列表
@@ -225,7 +216,8 @@ export default {
         pageSize: 10,
         name: undefined,
         code: undefined,
-        status: undefined
+        status: undefined,
+        createTime: []
       },
       // 表单参数
       form: {},
@@ -262,10 +254,7 @@ export default {
     /** 查询角色列表 */
     getList() {
       this.loading = true;
-      listRole(this.addDateRange(this.queryParams, [
-        this.dateRange[0] ? this.dateRange[0] + ' 00:00:00' : undefined,
-        this.dateRange[1] ? this.dateRange[1] + ' 23:59:59' : undefined,
-      ])).then(
+      listRole(this.queryParams).then(
         response => {
           this.roleList = response.data.list;
           this.total = response.data.total;
@@ -332,7 +321,6 @@ export default {
     },
     /** 重置按钮操作 */
     resetQuery() {
-      this.dateRange = [];
       this.resetForm("queryForm");
       this.handleQuery();
     },
@@ -398,16 +386,17 @@ export default {
         // 处理 menuOptions 参数
         this.menuOptions = [];
         this.menuOptions.push(...this.handleTree(response.data, "id"));
+        // 获取角色拥有的菜单权限
+        listRoleMenus(id).then(response => {
+          // 设置为严格，避免设置父节点自动选中子节点，解决半选中问题
+          this.form.menuCheckStrictly = true
+          // 设置选中
+          this.$refs.menu.setCheckedKeys(response.data);
+          // 设置为非严格，继续使用半选中
+          this.form.menuCheckStrictly = false
+        })
       });
-      // 获得角色拥有的菜单集合
-      listRoleMenus(id).then(response => {
-        // 设置为严格，避免设置父节点自动选中子节点，解决半选中问题
-        this.form.menuCheckStrictly = true
-        // 设置选中
-        this.$refs.menu.setCheckedKeys(response.data);
-        // 设置为非严格，继续使用半选中
-        this.form.menuCheckStrictly = false
-      })
+
     },
     /** 分配数据权限操作 */
     handleDataScope(row) {

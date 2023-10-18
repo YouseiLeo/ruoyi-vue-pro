@@ -18,7 +18,7 @@ export function parseTime(time, pattern) {
     if ((typeof time === 'string') && (/^[0-9]+$/.test(time))) {
       time = parseInt(time)
     } else if (typeof time === 'string') {
-      time = time.replace(new RegExp(/-/gm), '/').replace('T', ' ').replace(new RegExp(/\.[\d]{3}/gm),'');
+      time = time.replace(new RegExp(/-/gm), '/').replace('T', ' ').replace(new RegExp(/\.\d{3}/gm),'');
     }
     if ((typeof time === 'number') && (time.toString().length === 10)) {
       time = time * 1000
@@ -34,7 +34,7 @@ export function parseTime(time, pattern) {
     s: date.getSeconds(),
     a: date.getDay()
   }
-  const time_str = format.replace(/{(y|m|d|h|i|s|a)+}/g, (result, key) => {
+  const time_str = format.replace(/{([ymdhisa])+}/g, (result, key) => {
     let value = formatObj[key]
     // Note: getDay() returns 0 on Sunday
     if (key === 'a') {
@@ -102,9 +102,11 @@ export function addBeginAndEndTime(params, dateRange, propName) {
 
 // 字符串格式化(%s )
 export function sprintf(str) {
-  var args = arguments, flag = true, i = 1;
+  const args = arguments
+  let flag = true
+  const i = 1
   str = str.replace(/%s/g, function () {
-    var arg = args[i++];
+    const arg = args[i++]
     if (typeof arg === 'undefined') {
       flag = false;
       return '';
@@ -116,7 +118,7 @@ export function sprintf(str) {
 
 // 转换字符串，undefined,null等转化为""
 export function praseStrEmpty(str) {
-  if (!str || str == "undefined" || str == "null") {
+  if (!str || str === "undefined" || str === "null") {
     return "";
   }
   return str;
@@ -169,4 +171,83 @@ export function getNowDateTime(timeStr) {
   let minutes = now.getMinutes().toString().padStart(2, "0") // 得到分钟;
   let seconds = now.getSeconds().toString().padStart(2, "0") // 得到秒;
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+/**
+ * 获得租户功能是否开启
+ */
+export function getTenantEnable() {
+  // console.log("enable: " + process.env.VUE_APP_TENANT_ENABLE)
+  if (process.env.VUE_APP_TENANT_ENABLE === "true") {
+    return true;
+  }
+  if (process.env.VUE_APP_TENANT_ENABLE === "false") {
+    return false;
+  }
+  return process.env.VUE_APP_TENANT_ENABLE || true;
+}
+
+/**
+ * 获得验证码功能是否开启
+ */
+export function getCaptchaEnable() {
+  if (process.env.VUE_APP_CAPTCHA_ENABLE === "true") {
+    return true;
+  }
+  if (process.env.VUE_APP_CAPTCHA_ENABLE === "false") {
+    return false;
+  }
+  return process.env.VUE_APP_CAPTCHA_ENABLE || true;
+}
+
+/**
+ * 获得文档是否开启
+ */
+export function getDocEnable() {
+  if (process.env.VUE_APP_DOC_ENABLE === "true") {
+    return true;
+  }
+  if (process.env.VUE_APP_DOC_ENABLE === "false") {
+    return false;
+  }
+  return process.env.VUE_APP_DOC_ENABLE || false;
+}
+
+/**
+ * 获得 Vue 应用的基础路径
+ */
+export function getBasePath() {
+  return process.env.VUE_APP_APP_NAME || '/';
+}
+
+/**
+ * 获得 Vue 应用的访问路径
+ *
+ * @param path 路径
+ */
+export function getPath(path) {
+  // 基础路径，必须以 / 结尾
+  let basePath = getBasePath();
+  if (!basePath.endsWith('/')) {
+    return basePath + '/';
+  }
+  // 访问路径，必须不能以 / 开头
+  if (path.startsWith('/')) {
+    path = path.substring(1);
+  }
+  return basePath + path;
+}
+
+/**
+ * 除法保留两位小数
+ *
+ * @param {*} divisor 除数
+ * @param {*} dividend 被除数
+ * @returns
+ */
+ export function divide(divisor, dividend) {
+  if(divisor == null || dividend == null || dividend === 0){
+    return null;
+  }
+  return Math.floor(divisor/dividend*100)/100;
 }

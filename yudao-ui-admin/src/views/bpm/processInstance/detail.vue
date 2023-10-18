@@ -14,8 +14,8 @@
             {{ processInstance.startUser.nickname }}
             <el-tag type="info" size="mini">{{ processInstance.startUser.deptName }}</el-tag>
           </el-form-item>
-          <el-form-item label="审批建议" prop="comment">
-            <el-input type="textarea" v-model="auditForms[index].comment" placeholder="请输入审批建议" />
+          <el-form-item label="审批建议" prop="reason">
+            <el-input type="textarea" v-model="auditForms[index].reason" placeholder="请输入审批建议" />
           </el-form-item>
         </el-form>
         <div style="margin-left: 10%; margin-bottom: 20px; font-size: 14px;">
@@ -35,16 +35,15 @@
       <el-col v-if="this.processInstance.processDefinition && this.processInstance.processDefinition.formType === 10"
               :span="16" :offset="6">
         <div >
-          <parser :key="new Date().getTime()" :form-conf="detailForm" @submit="submitForm" />
+          <parser :key="new Date().getTime()" :form-conf="detailForm" />
         </div>
       </el-col>
       <div v-if="this.processInstance.processDefinition && this.processInstance.processDefinition.formType === 20">
-        <router-link :to="this.processInstance.processDefinition.formCustomViewPath + '?id='
-                          + this.processInstance.businessKey">
-          <el-button type="primary">点击查看</el-button>
-        </router-link>
+        <async-biz-form-component :id="this.processInstance.businessKey"></async-biz-form-component>
       </div>
     </el-card>
+
+    <!-- 审批记录 -->
     <el-card class="box-card" v-loading="tasksLoad">
       <div slot="header" class="clearfix">
         <span class="el-icon-picture-outline">审批记录</span>
@@ -60,14 +59,14 @@
                   审批人：{{ item.assigneeUser.nickname }}
                   <el-tag type="info" size="mini">{{ item.assigneeUser.deptName }}</el-tag>
                 </label>
-                <label style="font-weight: normal">创建时间：</label>
+                <label style="font-weight: normal" v-if="item.createTime">创建时间：</label>
                 <label style="color:#8a909c; font-weight: normal">{{ parseTime(item.createTime) }}</label>
                 <label v-if="item.endTime" style="margin-left: 30px;font-weight: normal">审批时间：</label>
                 <label v-if="item.endTime" style="color:#8a909c;font-weight: normal"> {{ parseTime(item.endTime) }}</label>
                 <label v-if="item.durationInMillis" style="margin-left: 30px;font-weight: normal">耗时：</label>
                 <label v-if="item.durationInMillis" style="color:#8a909c;font-weight: normal"> {{ getDateStar(item.durationInMillis) }} </label>
-                <p v-if="item.comment">
-                  <el-tag :type="getTimelineItemType(item)">{{ item.comment }}</el-tag>
+                <p v-if="item.reason">
+                  <el-tag :type="getTimelineItemType(item)">{{ item.reason }}</el-tag>
                 </p>
               </el-card>
             </el-timeline-item>
@@ -108,11 +107,12 @@ import {DICT_TYPE, getDictDatas} from "@/utils/dict";
 import store from "@/store";
 import {decodeFields} from "@/utils/formGenerator";
 import Parser from '@/components/parser/Parser'
-import {createProcessInstance, getProcessInstance} from "@/api/bpm/processInstance";
+import {getProcessInstance} from "@/api/bpm/processInstance";
 import {approveTask, getTaskListByProcessInstanceId, rejectTask, updateTaskAssignee} from "@/api/bpm/task";
 import {getDate} from "@/utils/dateUtils";
 import {listSimpleUsers} from "@/api/system/user";
 import {getActivityList} from "@/api/bpm/activity";
+import Vue from "vue";
 
 // 流程实例的详情页，可用于审批
 export default {
@@ -136,7 +136,7 @@ export default {
       // BPMN 数据
       bpmnXML: null,
       bpmnControlForm: {
-        prefix: "activiti"
+        prefix: "flowable"
       },
       activityList: [],
 
@@ -148,7 +148,7 @@ export default {
       runningTasks: [],
       auditForms: [],
       auditRule: {
-        comment: [{ required: true, message: "审批建议不能为空", trigger: "blur" }],
+        reason: [{ required: true, message: "审批建议不能为空", trigger: "blur" }],
       },
 
       // 转派审批人
@@ -161,10 +161,7 @@ export default {
         rules: {
           assigneeUserId: [{ required: true, message: "新审批人不能为空", trigger: "change" }],
         }
-      },
-
-      // 数据字典
-      categoryDictDatas: getDictDatas(DICT_TYPE.BPM_MODEL_CATEGORY),
+      }
     };
   },
   created() {
@@ -193,6 +190,12 @@ export default {
         }
         // 设置流程信息
         this.processInstance = response.data;
+
+        //将业务表单，注册为动态组件
+        const path = this.processInstance.processDefinition.formCustomViewPath;
+        Vue.component("async-biz-form-component", function(resolve) {
+          require([`@/views${path}`], resolve);
+        });
 
         // 设置表单信息
         if (this.processInstance.processDefinition.formType === 10) {
@@ -232,7 +235,13 @@ export default {
       this.auditForms = [];
       getTaskListByProcessInstanceId(this.id).then(response => {
         // 审批记录
-        this.tasks = response.data;
+        this.tasks = [];
+        // 移除已取消的审批
+        response.data.forEach(task => {
+          if (task.result !== 4) {
+            this.tasks.push(task);
+          }
+        });
         // 排序，将未完成的排在前面，已完成的排在后面；
         this.tasks.sort((a, b) => {
           // 有已完成的情况，按照完成时间倒序
@@ -259,55 +268,13 @@ export default {
           }
           this.runningTasks.push({...task});
           this.auditForms.push({
-            comment: ''
+            reason: ''
           })
         });
 
         // 取消加载中
         this.tasksLoad = false;
       });
-    },
-    /** 处理选择流程的按钮操作 **/
-    handleSelect(row) {
-      // 设置选择的流程
-      this.selectProcessInstance = row;
-
-      // 流程表单
-      if (row.formId) {
-        // 设置对应的表单
-        this.detailForm = {
-          ...JSON.parse(row.formConf),
-          fields: decodeFields(row.formFields)
-        }
-      } else if (row.formCustomCreatePath) {
-        this.$router.push({ path: row.formCustomCreatePath});
-        // 这里暂时无需加载流程图，因为跳出到另外个 Tab；
-      }
-    },
-    /** 提交按钮 */
-    submitForm(params) {
-      if (!params) {
-        return;
-      }
-      // 设置表单禁用
-      const conf = params.conf;
-      conf.disabled = true; // 表单禁用
-      conf.formBtns = false; // 按钮隐藏
-
-      // 提交表单，创建流程
-      const variables = params.values;
-      createProcessInstance({
-        processDefinitionId: this.selectProcessInstance.id,
-        variables: variables
-      }).then(response => {
-        this.$modal.msgSuccess("发起流程成功");
-        // 关闭当前窗口
-        this.$tab.closeOpenPage();
-        this.$router.go(-1);
-      }).catch(() => {
-        conf.disabled = false; // 表单开启
-        conf.formBtns = true; // 按钮展示
-      })
     },
     getDateStar(ms) {
       return getDate(ms);
@@ -351,7 +318,7 @@ export default {
         }
         const data = {
           id: task.id,
-          comment: this.auditForms[index].comment
+          reason: this.auditForms[index].reason
         }
         if (pass) {
           approveTask(data).then(response => {
@@ -407,6 +374,15 @@ export default {
     /** 处理审批退回的操作 */
     handleBack(task) {
       this.$modal.msgError("暂不支持【退回】功能！");
+      // 可参考 http://blog.wya1.com/article/636697030/details/7296
+      // const data = {
+      //   id: task.id,
+      //   assigneeUserId: 1
+      // }
+      // backTask(data).then(response => {
+      //   this.$modal.msgSuccess("回退成功！");
+      //   this.getDetail(); // 获得最新详情
+      // });
     }
   }
 };

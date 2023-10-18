@@ -1,30 +1,30 @@
 <template>
   <div class="app-container">
-
+    <doc-alert title="SaaS 多租户" url="https://doc.iocoder.cn/saas-tenant/" />
     <!-- 搜索工作栏 -->
-    <el-form :model="queryParams" ref="queryForm" :inline="true" v-show="showSearch" label-width="68px">
+    <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="68px">
       <el-form-item label="租户名" prop="name">
-        <el-input v-model="queryParams.name" placeholder="请输入租户名" clearable size="small" @keyup.enter.native="handleQuery"/>
+        <el-input v-model="queryParams.name" placeholder="请输入租户名" clearable @keyup.enter.native="handleQuery"/>
       </el-form-item>
       <el-form-item label="联系人" prop="contactName">
-        <el-input v-model="queryParams.contactName" placeholder="请输入联系人" clearable size="small" @keyup.enter.native="handleQuery"/>
+        <el-input v-model="queryParams.contactName" placeholder="请输入联系人" clearable @keyup.enter.native="handleQuery"/>
       </el-form-item>
       <el-form-item label="联系手机" prop="contactMobile">
-        <el-input v-model="queryParams.contactMobile" placeholder="请输入联系手机" clearable size="small" @keyup.enter.native="handleQuery"/>
+        <el-input v-model="queryParams.contactMobile" placeholder="请输入联系手机" clearable @keyup.enter.native="handleQuery"/>
       </el-form-item>
       <el-form-item label="租户状态" prop="status">
-        <el-select v-model="queryParams.status" placeholder="请选择租户状态" clearable size="small">
+        <el-select v-model="queryParams.status" placeholder="请选择租户状态" clearable>
           <el-option v-for="dict in this.getDictDatas(DICT_TYPE.COMMON_STATUS)"
                        :key="dict.value" :label="dict.label" :value="dict.value"/>
         </el-select>
       </el-form-item>
-      <el-form-item label="创建时间">
-        <el-date-picker v-model="dateRangeCreateTime" size="small" style="width: 240px" value-format="yyyy-MM-dd"
-                        type="daterange" range-separator="-" start-placeholder="开始日期" end-placeholder="结束日期" />
+      <el-form-item label="创建时间" prop="createTime">
+        <el-date-picker v-model="queryParams.createTime" style="width: 240px" value-format="yyyy-MM-dd HH:mm:ss" type="daterange"
+                        range-separator="-" start-placeholder="开始日期" end-placeholder="结束日期" :default-time="['00:00:00', '23:59:59']" />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
-        <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
+        <el-button type="primary" icon="el-icon-search" @click="handleQuery">搜索</el-button>
+        <el-button icon="el-icon-refresh" @click="resetQuery">重置</el-button>
       </el-form-item>
     </el-form>
 
@@ -45,20 +45,37 @@
     <el-table v-loading="loading" :data="list">
       <el-table-column label="租户编号" align="center" prop="id" />
       <el-table-column label="租户名" align="center" prop="name" />
+      <el-table-column label="租户套餐" align="center" prop="packageId">
+        <template v-slot="scope">
+          <el-tag v-if="scope.row.packageId === 0" type="danger">系统租户</el-tag>
+          <el-tag v-else> {{getPackageName(scope.row.packageId)}} </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="联系人" align="center" prop="contactName" />
       <el-table-column label="联系手机" align="center" prop="contactMobile" />
+      <el-table-column label="账号额度" align="center" prop="accountCount">
+        <template v-slot="scope">
+          <el-tag> {{scope.row.accountCount}} </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="过期时间" align="center" prop="expireTime" width="180">
+        <template v-slot="scope">
+          <span>{{ parseTime(scope.row.expireTime) }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="绑定域名" align="center" prop="domain" width="180" />
       <el-table-column label="租户状态" align="center" prop="status">
-        <template slot-scope="scope">
+        <template v-slot="scope">
           <dict-tag :type="DICT_TYPE.COMMON_STATUS" :value="scope.row.status"/>
         </template>
       </el-table-column>
       <el-table-column label="创建时间" align="center" prop="createTime" width="180">
-        <template slot-scope="scope">
+        <template v-slot="scope">
           <span>{{ parseTime(scope.row.createTime) }}</span>
         </template>
       </el-table-column>
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
-        <template slot-scope="scope">
+        <template v-slot="scope">
           <el-button size="mini" type="text" icon="el-icon-edit" @click="handleUpdate(scope.row)"
                      v-hasPermi="['system:tenant:update']">修改</el-button>
           <el-button size="mini" type="text" icon="el-icon-delete" @click="handleDelete(scope.row)"
@@ -76,11 +93,32 @@
         <el-form-item label="租户名" prop="name">
           <el-input v-model="form.name" placeholder="请输入租户名" />
         </el-form-item>
+        <el-form-item label="租户套餐" prop="packageId">
+          <el-select v-model="form.packageId" placeholder="请选择租户套餐" clearable size="small">
+            <el-option v-for="item in packageList" :key="item.id" :label="item.name" :value="item.id"/>
+          </el-select>
+        </el-form-item>
         <el-form-item label="联系人" prop="contactName">
           <el-input v-model="form.contactName" placeholder="请输入联系人" />
         </el-form-item>
         <el-form-item label="联系手机" prop="contactMobile">
           <el-input v-model="form.contactMobile" placeholder="请输入联系手机" />
+        </el-form-item>
+        <el-form-item v-if="form.id === undefined" label="用户名称" prop="username">
+          <el-input v-model="form.username" placeholder="请输入用户名称" />
+        </el-form-item>
+        <el-form-item v-if="form.id === undefined" label="用户密码" prop="password">
+          <el-input v-model="form.password" placeholder="请输入用户密码" type="password" show-password />
+        </el-form-item>
+        <el-form-item label="账号额度" prop="accountCount">
+          <el-input-number v-model="form.accountCount" placeholder="请输入账号额度" controls-position="right" :min="0" />
+        </el-form-item>
+        <el-form-item label="过期时间" prop="expireTime">
+          <el-date-picker clearable size="small" v-model="form.expireTime" type="date"
+                          value-format="timestamp" placeholder="请选择过期时间" />
+        </el-form-item>
+        <el-form-item label="绑定域名" prop="domain">
+          <el-input v-model="form.domain" placeholder="请输入绑定域名" />
         </el-form-item>
         <el-form-item label="租户状态" prop="status">
           <el-radio-group v-model="form.status">
@@ -100,9 +138,10 @@
 <script>
 import { createTenant, updateTenant, deleteTenant, getTenant, getTenantPage, exportTenantExcel } from "@/api/system/tenant";
 import { CommonStatusEnum } from '@/utils/constants'
+import {getTenantPackageList} from "@/api/system/tenantPackage";
 
 export default {
-  name: "Tenant",
+  name: "SystemTenant",
   components: {
   },
   data() {
@@ -117,11 +156,12 @@ export default {
       total: 0,
       // 租户列表
       list: [],
+      // 租户套餐列表
+      packageList: [],
       // 弹出层标题
       title: "",
       // 是否显示弹出层
       open: false,
-      dateRangeCreateTime: [],
       // 查询参数
       queryParams: {
         pageNo: 1,
@@ -130,29 +170,37 @@ export default {
         contactName: null,
         contactMobile: null,
         status: undefined,
+        createTime: []
       },
       // 表单参数
       form: {},
       // 表单校验
       rules: {
         name: [{ required: true, message: "租户名不能为空", trigger: "blur" }],
+        packageId: [{ required: true, message: "租户套餐不能为空", trigger: "blur" }],
         contactName: [{ required: true, message: "联系人不能为空", trigger: "blur" }],
-        status: [{ required: true, message: "租户状态（0正常 1停用）不能为空", trigger: "blur" }],
+        status: [{ required: true, message: "租户状态不能为空", trigger: "blur" }],
+        accountCount: [{ required: true, message: "账号额度不能为空", trigger: "blur" }],
+        expireTime: [{ required: true, message: "过期时间不能为空", trigger: "blur" }],
+        domain: [{ required: true, message: "绑定域名不能为空", trigger: "blur" }],
+        username: [{ required: true, message: "用户名称不能为空", trigger: "blur" }],
+        password: [{ required: true, message: "用户密码不能为空", trigger: "blur" }],
       }
     };
   },
   created() {
     this.getList();
+    // 获得租户套餐列表
+    getTenantPackageList().then(response => {
+      this.packageList = response.data;
+    })
   },
   methods: {
     /** 查询列表 */
     getList() {
       this.loading = true;
-      // 处理查询参数
-      let params = {...this.queryParams};
-      this.addBeginAndEndTime(params, this.dateRangeCreateTime, 'createTime');
       // 执行查询
-      getTenantPage(params).then(response => {
+      getTenantPage(this.queryParams).then(response => {
         this.list = response.data.list;
         this.total = response.data.total;
         this.loading = false;
@@ -168,8 +216,12 @@ export default {
       this.form = {
         id: undefined,
         name: undefined,
+        packageId: undefined,
         contactName: undefined,
         contactMobile: undefined,
+        accountCount: undefined,
+        expireTime: undefined,
+        domain: undefined,
         status: CommonStatusEnum.ENABLE,
       };
       this.resetForm("form");
@@ -181,7 +233,6 @@ export default {
     },
     /** 重置按钮操作 */
     resetQuery() {
-      this.dateRangeCreateTime = [];
       this.resetForm("queryForm");
       this.handleQuery();
     },
@@ -240,7 +291,6 @@ export default {
       let params = {...this.queryParams};
       params.pageNo = undefined;
       params.pageSize = undefined;
-      this.addBeginAndEndTime(params, this.dateRangeCreateTime, 'createTime');
       // 执行导出
       this.$modal.confirm('是否确认导出所有租户数据项?').then(() => {
           this.exportLoading = true;
@@ -249,6 +299,15 @@ export default {
           this.$download.excel(response, '租户.xls');
           this.exportLoading = false;
       }).catch(() => {});
+    },
+    /** 套餐名格式化 */
+    getPackageName(packageId) {
+      for (const item of this.packageList) {
+        if (item.id === packageId) {
+          return item.name;
+        }
+      }
+      return '未知套餐';
     }
   }
 };
